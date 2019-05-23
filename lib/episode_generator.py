@@ -7,7 +7,8 @@ import pdb
 import numpy as np
 from PIL import Image
 
-class BatchGenerator():
+
+class MiniImgNetSTLGenerator(): # only for miniImagenet
     def __init__(self, data_dir, transform=False, split=False):
         self.data_dir = data_dir
         self.class_list = os.listdir(data_dir)
