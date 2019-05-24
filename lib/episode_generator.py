@@ -1,4 +1,5 @@
 import torch
+import torchvision
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
 
@@ -6,6 +7,7 @@ import os
 import pdb
 import numpy as np
 import csv
+import pdb
 from PIL import Image
 import pickle
 
@@ -70,6 +72,73 @@ class CIFAR10():
         y = self.y[idx]
         return x, y
         
+
+#class ImageNet():
+#    def __init__(self, data_dir, transform=True, phase='train'):
+#        assert phase in ['train', 'valid', 'test']
+#        self.data_dir = data_dir
+#        csv_file_name = os.path.join(data_dir,
+#                'ImageSets/CLS-LOC'
+
+class ImagenetTrain(torchvision.datasets.ImageFolder):
+    def __init__(self, data_dir):
+
+        jitter_param = 0.4
+        self.hw = 224
+        self.n_classes = 1000
+    
+        self.trfn = transforms.Compose([
+            transforms.RandomResizedCrop(self.hw),
+            transforms.RandomHorizontalFlip(),
+            transforms.ColorJitter(jitter_param,
+                jitter_param, jitter_param),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[.485,.455,.406],
+                std=[.229,.224,.225]) ])
+        
+        data_dir = os.path.join(data_dir, 'train')
+        super(ImagenetTrain, self).__init__(data_dir, transform=self.trfn)
+
+class ImagenetVal():
+    def __init__(self, data_dir):
+
+        csv_file_name = os.path.join(data_dir, 'valid.csv')
+        self.data_dir = os.path.join(data_dir, 'val')
+        self.x, self.y = [], []
+        with open(csv_file_name, 'r') as csvfile:
+            reader = csv.reader(csvfile)
+            for i, row in enumerate(reader):
+                if i==0: #header
+                    self.header = row
+                else:
+                    foldername = row[0].split('/')[0]
+                    row[0] = row[0].replace(foldername + '/', '')
+                    self.x.append(row[0])
+                    self.y.append(int(row[1]))
+
+        self.n = len(self.y)
+        self.n_classes = 1000
+        self.hw = 224
+
+        self.trfn = transforms.Compose([
+            transforms.Resize(self.hw),
+            transforms.CenterCrop(self.hw),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[.485,.455,.406],
+                std=[.229,.224,.225]) ])
+
+    def __len__(self):
+        return self.n
+
+    def __getitem__(self, idx):
+        filename = self.x[idx]
+        data_path = os.path.join(self.data_dir, filename)
+        x = Image.open(data_path)
+        x = self.trfn(x)
+        y = self.y[idx]
+        return (x, y)
+
+
 
 
 class Chexpert():

@@ -1,6 +1,7 @@
 import torch
 import torch.cuda as cuda
 import GPUtil
+import pdb
 
 class QueueIterator:
     def __init__(self, q):
@@ -42,9 +43,10 @@ def get_available_gpu_ids(order='first'):
 
 def mixup(x, y, lam, yto1hot=0):
     # yto1hot -> n_classes
-    y1hot = torch.zeros(y.size(0), yto1hot)
-    y1hot[torch.arange(y.size(0)), y] = 1
-    y = y1hot
+    if len(y.shape) == 1: # if not onehot
+        y1hot = torch.zeros(y.size(0), yto1hot)
+        y1hot[torch.arange(y.size(0)), y.long()] = 1
+        y = y1hot
     perm = torch.randperm(x.size(0))
     x_perm = x[perm]
     y_perm = y[perm]
@@ -52,8 +54,10 @@ def mixup(x, y, lam, yto1hot=0):
     y_mx = lam*y + (1-lam)*y_perm
     return x_mx, y_mx
 
-def xent(pred, y):
-    return -(pred.log_softmax(dim=-1) * y).sum(dim=-1).mean()
+def xent(pred, y, dtype=torch.float):
+    pred, y = pred.to(dtype=dtype), y.to(dtype=dtype)
+    out = -(pred.log_softmax(dim=-1) * y).sum(dim=-1).mean()
+    return out
     
 
 if __name__=='__main__':
