@@ -40,6 +40,22 @@ def get_available_gpu_ids(order='first'):
     return deviceIDs
 
 
+def mixup(x, y, lam, yto1hot=0):
+    # yto1hot -> n_classes
+    y1hot = torch.zeros(y.size(0), yto1hot)
+    y1hot[torch.arange(y.size(0)), y] = 1
+    y = y1hot
+    perm = torch.randperm(x.size(0))
+    x_perm = x[perm]
+    y_perm = y[perm]
+    x_mx = lam*x + (1-lam)*x_perm
+    y_mx = lam*y + (1-lam)*y_perm
+    return x_mx, y_mx
+
+def xent(pred, y):
+    return -(pred.log_softmax(dim=-1) * y).sum(dim=-1).mean()
+    
+
 if __name__=='__main__':
     print (get_available_gpu_ids('first'))
 

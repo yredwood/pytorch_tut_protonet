@@ -43,13 +43,13 @@ class WideResNet(nn.Module):
         self.num_fc = fc 
         self.depth = depth
         self.k = k
-        self.stride = 3 # dependent on input image
+        self.stride = 2 # dependent on input image
         fb = [filters, filters*k, filters*2*k, filters*4*k]
         assert (depth-4)%6 == 0
         self.n_blocks = [(depth-4)//6] * 3
 
 
-        self.prebn1 = nn.BatchNorm2d(3)
+        self.prebn1 = nn.BatchNorm2d(3, affine=False)
         self.preconv = nn.Conv2d(3, fb[0], 3, 
                 stride=1, padding=1, bias=False)
         self.prebn2 = nn.BatchNorm2d(fb[0])
@@ -67,6 +67,7 @@ class WideResNet(nn.Module):
         self.backbone = nn.Sequential(*layers)
 
         self.postbn = nn.BatchNorm2d(fb[3])
+        self.relu = nn.ReLU()
         self.avgpool = nn.AdaptiveAvgPool2d((1,1))
 
         if self.num_fc > 0:
@@ -79,6 +80,7 @@ class WideResNet(nn.Module):
 
         x = self.backbone(x)
         x = self.postbn(x)
+        x = self.relu(x)
         x = self.avgpool(x)
 
         x = x.view(x.size(0), -1)

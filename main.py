@@ -7,22 +7,30 @@ import pdb
 import time
 
 from lib.episode_generator import MiniImgNetSTLGenerator
+from lib.episode_generator import CIFAR10
+
 from lib.simplenet import SimpleNet
 from lib.resnet12 import ResNet12
 from lib.wideresnet import WideResNet
 from lib.utils import get_available_gpu_ids
+from lib.utils import xent
+from lib.utils import mixup
+from lib.utils import xent
 
 
 # ========= HYPERPARAMS ===========
-data_type = ['miniImagenet', 'CIFAR10'][1]
+data_type = ['miniImagenet', 'CIFAR10', 'CheXpert'][1]
 
 split = [('train', 'test'), (False, False)][0]
-max_epoch = 100
+max_epoch = 200
+lr_decay = 0.2
+lr_decay_list = [60,120,160]
 num_workers = 8
 network = ['simple', 'res12', 'wdres'][2]
-num_gpus = 4
+num_gpus = 1
 per_gpu_batch = 64
-save_str = 'net.{}_data.{}_task.{}'.format(network, data_type, 'clf')
+aug_mixup = True
+save_str = 'net.{}_data.{}_task.{}_mixup.{}'.format(network, data_type, 'clf', aug_mixup)
 batch_size = per_gpu_batch * num_gpus
 print (save_str)
 # ========= HYPERPARAMS ===========
@@ -35,12 +43,16 @@ print ('using device : {}'.format(devices))
 
 if data_type=='miniImagenet':
     data_dir = 'data/miniImagenet/train'
-    train_dataset = MiniImgNetSTLGenerator(data_dir, transform=True, split=split[0])
-    test_dataset = MiniImgNetSTLGenerator(data_dir, split=split[1])
+    train_dataset = MiniImagenet(data_dir, transform=True, split=split[0])
+    test_dataset = MiniImagenet(data_dir, split=split[1])
 elif data_type=='CIFAR10':
-    data_dir = 'data/cifar10'
-    train_dataset = torchvision.datasets.CIFAR10(root=data_dir, train=True,
-            download=True)
+    data_dir = 'data/cifar-10-batches-py'
+    train_dataset = CIFAR10(data_dir, transform=True, phase='train')
+    test_dataset = CIFAR10(data_dir, transform=False, phase='test')
+elif data_type=='CheXpert':
+    data_dir = 'data/CheXpert-v1.0-small'
+    train_dataset = Chexpert(data_dir, transform=True, phase='train')
+    train_dataset = Chexpert(data_dir, transform=False, phase='valid')
 
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, 
         num_workers=num_workers, drop_last=True)
@@ -58,8 +70,8 @@ train_net = nn.DataParallel(train_net, devices).cuda()
 #pdb.set_trace()
 
 loss_fn = nn.CrossEntropyLoss()
-optimizer = torch.optim.SGD(train_net.parameters(), lr=1e-2, momentum=0.9)
-lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [50,75], gamma=0.1)
+optimizer = torch.optim.SGD(train_net.parameters(), lr=1e-2, momentum=0.9, weight_decay=5e-4)
+lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, lr_decay_list, gamma=lr_decay)
 
 # restoring
 #train_net.load_only_possibles(torch.load('models/{}'.format(cfg)))
@@ -78,12 +90,21 @@ for epoch in range(max_epoch):
         btime += t1 - t2
 
         x, y = batch
-#        x, y = x.cuda(devices[0]), y.long().cuda(devices[0])
-        x, y = x.cuda(), y.cuda().long()
+        if aug_mixup:
+            lam = np.random.beta(1, 1)
+            if epoch >= max_epoch - 20:
+                lam = 1
 
-        pred = train_net.forward(x)
-        loss = loss_fn(pred, y)
-        acc = (pred.max(1)[1] == y).float().mean()
+            x, y = mixup(x, y, lam, train_dataset.n_classes)
+            x, y = x.cuda(), y.cuda()
+            pred = train_net.forward(x)
+            loss = xent(pred, y)
+            acc = (pred.max(1)[1] == y.max(1)[1]).float().mean()
+        else:
+            x, y = x.cuda(), y.cuda().long()
+            pred = train_net.forward(x)
+            loss = loss_fn(pred, y)
+            acc = (pred.max(1)[1] == y).float().mean()
 
         accs.append(acc)
         losses.append(loss)
