@@ -111,9 +111,8 @@ class ImagenetVal():
                 if i==0: #header
                     self.header = row
                 else:
-                    foldername = row[0].split('/')[0]
-                    row[0] = row[0].replace(foldername + '/', '')
-                    self.x.append(row[0])
+                    filename = row[0].split('/')[-1]
+                    self.x.append(filename)
                     self.y.append(int(row[1]))
 
         self.n = len(self.y)
@@ -137,7 +136,6 @@ class ImagenetVal():
         x = self.trfn(x)
         y = self.y[idx]
         return (x, y)
-
 
 
 

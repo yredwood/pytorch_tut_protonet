@@ -50,12 +50,12 @@ if __name__=='__main__':
     args = parse_args()
     print ('='*30, 'ARGS', '='*30)
     args.batch_size = args.per_gpu_batch * args.num_gpus 
-    args.devices = get_available_gpu_ids()[:args.num_gpus]
+    #args.devices = get_available_gpu_ids()[:args.num_gpus]
+    args.devices = [0,1,4,6][:args.num_gpus]
     args.lr_decay_list = [int(r) for r in args.lr_decay_list.split(',')]
     args.save_str = 'net.{}_data.{}_task.{}_mixup.{}_batchsize.{}'\
             .format(args.arch, args.datatype, 'clf', 
                     args.aug_mixup, args.batch_size)
-
     torch.cuda.set_device(args.devices[0])
     for arg in sorted(vars(args)):
         print ('%15s: %s'%(arg, getattr(args, arg)))
@@ -78,7 +78,6 @@ if __name__=='__main__':
         data_dir = 'data/Imagenet'
         train_dataset = ImagenetTrain(data_dir)
         test_dataset = ImagenetVal(data_dir)
-
 
 
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, 
@@ -127,17 +126,21 @@ if __name__=='__main__':
                     lam = 1
 
                 x, y = mixup(x, y, lam, train_dataset.n_classes)
-                x, y = x.cuda(), y.long().cuda()
+                x, y = x.cuda(non_blocking=True), y.long().cuda(non_blocking=True)
                 pred = train_net.forward(x)
                 loss = xent(pred, y)
                 acc = (pred.max(1)[1] == y.max(1)[1]).float().mean()
             else:
                 x, y = x.cuda(), y.cuda().long()
-                pred = train_net.forward(x)
-                if len(y.shpae) == 1:
+                if len(y.shape) != 1:
                     y = y.max(1)[1]
+
+#                pdb.set_trace()
+                
+                pred = train_net.forward(x)
                 loss = loss_fn(pred, y)
                 acc = (pred.max(1)[1] == y).float().mean()
+
 
             accs.append(acc)
             losses.append(loss)
@@ -148,6 +151,15 @@ if __name__=='__main__':
 
             t2 = time.time()
             mtime += t2 - t1
+
+            print (btime, mtime)
+            #pdb.set_trace()
+            
+            if (i % 100 == 0) and (i != 0):
+                max_iter = len(train_dataset) // args.batch_size
+                print ('{} / {} ({:.3f}) \%, expected epoch time - {:.3f}'\
+                        .format(i, max_iter, 
+                            i/max_iter, (time.time() - t0) / i * max_iter))
         
         lr_scheduler.step()
         taccs = []

@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import time
 import pdb
 
 
@@ -53,6 +54,7 @@ class VGGNet(nn.Module):
         self.relu = nn.ReLU()
 
     def forward(self, x):
+        t0 = time.time()
         x = self.backbone(x)
         x = x.view(x.size(0), -1)
 
@@ -68,4 +70,5 @@ class VGGNet(nn.Module):
         x = self.fc3(x)
         x = self.relu(x)
         x = self.dropout(x)
+        print ('forward called in {:.3f} sec'.format(time.time()-t0))
         return x
